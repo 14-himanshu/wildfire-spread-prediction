@@ -1,14 +1,30 @@
 """
 Geospatial and mathematical utility functions for Wildfire Spread Prediction.
-Includes wind vector decomposition, tensor normalization, and metric computation.
-Features defensive guards for zero-fire / single-class edge cases.
+Includes wind vector decomposition, tensor normalization, metric computation,
+and cross-platform project path resolution (zero hard-coded absolute paths).
 """
 
 import json
 import os
+from pathlib import Path
 import numpy as np
 import torch
 from sklearn.metrics import precision_recall_curve, auc, roc_auc_score
+
+# Dynamic cross-platform project paths (independent of local username)
+SRC_DIR = Path(__file__).resolve().parent
+PROJECT_ROOT = SRC_DIR.parent
+DATA_DIR = PROJECT_ROOT / "data" / "raw"
+CONFIGS_DIR = PROJECT_ROOT / "configs"
+MODELS_DIR = PROJECT_ROOT / "models"
+REPORTS_DIR = PROJECT_ROOT / "reports"
+
+def load_yaml_config(config_path=None):
+    import yaml
+    if config_path is None:
+        config_path = CONFIGS_DIR / "train_config.yaml"
+    with open(config_path, 'r') as f:
+        return yaml.safe_load(f)
 
 def decompose_wind(wind_speed, wind_direction_deg):
     """
@@ -23,7 +39,8 @@ def decompose_wind(wind_speed, wind_direction_deg):
     return u, v
 
 def save_json(data, filepath):
-    os.makedirs(os.path.dirname(filepath), exist_ok=True)
+    filepath = Path(filepath)
+    filepath.parent.mkdir(parents=True, exist_ok=True)
     with open(filepath, 'w') as f:
         json.dump(data, f, indent=2)
 
@@ -40,7 +57,6 @@ def compute_binary_metrics(y_true, y_prob, threshold=0.35):
     y_prob_flat = np.nan_to_num(y_prob.flatten()).astype(np.float32)
     y_pred_flat = (y_prob_flat >= threshold).astype(np.uint8)
 
-    # True Positives, False Positives, False Negatives, True Negatives
     tp = np.sum((y_pred_flat == 1) & (y_true_flat == 1))
     fp = np.sum((y_pred_flat == 1) & (y_true_flat == 0))
     fn = np.sum((y_pred_flat == 0) & (y_true_flat == 1))
@@ -53,9 +69,7 @@ def compute_binary_metrics(y_true, y_prob, threshold=0.35):
     dice = 2 * tp / (2 * tp + fp + fn + 1e-7)
     fpr = fp / (fp + tn + 1e-7)
 
-    # PR-AUC & ROC-AUC with edge-case protection
     if len(np.unique(y_true_flat)) < 2:
-        # Edge case: All pixels are 0 or all are 1
         pr_auc = 0.0 if np.sum(y_true_flat) == 0 else 1.0
         roc_auc = 0.5
     else:
