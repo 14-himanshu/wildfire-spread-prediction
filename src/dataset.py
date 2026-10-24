@@ -184,8 +184,9 @@ class WildfireTFRecordDataset(IterableDataset):
                         continue
 
 if __name__ == "__main__":
-    data_dir = "/Users/himanshupandey/Desktop/wildfire-spread-prediction/data/raw"
-    scaler_file = "/Users/himanshupandey/Desktop/wildfire-spread-prediction/configs/scaler_params.json"
+    from utils import DATA_DIR, CONFIGS_DIR
+    data_dir = DATA_DIR
+    scaler_file = CONFIGS_DIR / "scaler_params.json"
     train_files = sorted(glob.glob(os.path.join(data_dir, "*train_*.tfrecord")))[:2]
     
     ds = WildfireTFRecordDataset(train_files, scaler_path=scaler_file, normalize=True)

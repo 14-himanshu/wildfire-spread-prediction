@@ -1,6 +1,7 @@
 """
 PyTorch training and evaluation engine for WildfireUNet.
 Features:
+- Completely portable paths (zero hardcoded usernames)
 - Hardware acceleration (MPS on Apple Silicon, CUDA on NVIDIA, or CPU)
 - Streaming TFRecord dataset loader with zero-leakage normalization
 - Masked Focal-Tversky loss targeting severe 99.7% class imbalance
@@ -12,6 +13,8 @@ import os
 import glob
 import time
 import json
+import argparse
+from pathlib import Path
 import numpy as np
 import torch
 import torch.nn as nn
@@ -21,7 +24,7 @@ import matplotlib.pyplot as plt
 from dataset import WildfireTFRecordDataset
 from models.unet import WildfireUNet
 from loss import CombinedBCEFocalTverskyLoss
-from utils import compute_binary_metrics, save_json
+from utils import compute_binary_metrics, save_json, DATA_DIR, MODELS_DIR, REPORTS_DIR, CONFIGS_DIR
 
 def get_device():
     if torch.cuda.is_available():
@@ -53,7 +56,6 @@ def evaluate_unet(model, val_loader, criterion, device, max_batches=25):
 
             probs = torch.sigmoid(logits)
 
-            # Filter valid observable pixels
             targets_np = targets.cpu().numpy()
             probs_np = probs.cpu().numpy()
             masks_np = masks.cpu().numpy().astype(bool)
@@ -64,7 +66,6 @@ def evaluate_unet(model, val_loader, criterion, device, max_batches=25):
             y_true_list.append(valid_targets)
             y_prob_list.append(valid_probs)
 
-            # Capture visual sample with active burning
             if sample_vis is None:
                 for s_i in range(inputs.size(0)):
                     if targets_np[s_i, 0].sum() > 20:
@@ -89,14 +90,14 @@ def evaluate_unet(model, val_loader, criterion, device, max_batches=25):
 
     return metrics, sample_vis
 
-def train_unet(epochs=3, batch_size=16, lr=5e-4, num_train_shards=2):
+def train_unet(data_dir=None, epochs=3, batch_size=16, lr=5e-4, num_train_shards=2):
     device = get_device()
     print(f"Initializing U-Net training pipeline on device: {device}")
 
-    data_dir = "/Users/himanshupandey/Desktop/wildfire-spread-prediction/data/raw"
-    scaler_file = "/Users/himanshupandey/Desktop/wildfire-spread-prediction/configs/scaler_params.json"
-    train_files = sorted(glob.glob(os.path.join(data_dir, "*train_*.tfrecord")))[:num_train_shards]
-    eval_files = sorted(glob.glob(os.path.join(data_dir, "*eval_*.tfrecord")))
+    data_dir = Path(data_dir or DATA_DIR)
+    scaler_file = CONFIGS_DIR / "scaler_params.json"
+    train_files = sorted(glob.glob(str(data_dir / "*train_*.tfrecord")))[:num_train_shards]
+    eval_files = sorted(glob.glob(str(data_dir / "*eval_*.tfrecord")))
 
     print(f"Training shards: {[os.path.basename(f) for f in train_files]}")
     print(f"Validation shards: {[os.path.basename(f) for f in eval_files]}")
@@ -112,7 +113,7 @@ def train_unet(epochs=3, batch_size=16, lr=5e-4, num_train_shards=2):
 
     for epoch in range(1, epochs + 1):
         model.train()
-        train_ds = WildfireTFRecordDataset(train_files, scaler_path=scaler_file, normalize=True)
+        train_ds = WildfireTFRecordDataset(train_files, scaler_path=str(scaler_file), normalize=True)
         train_loader = DataLoader(train_ds, batch_size=batch_size)
 
         epoch_loss = 0.0
@@ -137,7 +138,6 @@ def train_unet(epochs=3, batch_size=16, lr=5e-4, num_train_shards=2):
             if batch_count % 30 == 0:
                 print(f"  Epoch [{epoch}/{epochs}] Batch {batch_count}: Loss = {loss.item():.4f}")
 
-            # Cap local training batches per epoch for prototyping
             if batch_count >= 120:
                 break
 
@@ -145,8 +145,7 @@ def train_unet(epochs=3, batch_size=16, lr=5e-4, num_train_shards=2):
         train_time = time.time() - t0
         avg_train_loss = epoch_loss / max(1, batch_count)
 
-        # Validation pass
-        val_ds = WildfireTFRecordDataset(eval_files, scaler_path=scaler_file, normalize=True)
+        val_ds = WildfireTFRecordDataset(eval_files, scaler_path=str(scaler_file), normalize=True)
         val_loader = DataLoader(val_ds, batch_size=batch_size)
         val_metrics, sample_vis = evaluate_unet(model, val_loader, criterion, device, max_batches=20)
 
@@ -161,8 +160,7 @@ def train_unet(epochs=3, batch_size=16, lr=5e-4, num_train_shards=2):
             best_metrics = val_metrics
             best_vis = sample_vis
             
-            # Save checkpoint
-            ckpt_path = "/Users/himanshupandey/Desktop/wildfire-spread-prediction/models/wildfire_unet_best.pth"
+            ckpt_path = MODELS_DIR / "wildfire_unet_best.pth"
             torch.save({
                 'epoch': epoch,
                 'model_state_dict': model.state_dict(),
@@ -171,15 +169,13 @@ def train_unet(epochs=3, batch_size=16, lr=5e-4, num_train_shards=2):
             }, ckpt_path)
             print(f"  [Checkpoint] Saved best U-Net model to: {ckpt_path}")
 
-    # Save metrics JSON
-    metrics_path = "/Users/himanshupandey/Desktop/wildfire-spread-prediction/reports/metrics_unet.json"
+    metrics_path = REPORTS_DIR / "metrics_unet.json"
     save_json(best_metrics, metrics_path)
     print(f"Saved evaluation metrics to: {metrics_path}")
 
-    # Generate sample prediction figure
     if best_vis:
         inputs_np, y_true_tile, y_prob_tile = best_vis
-        prev_fire_tile = inputs_np[11] # PrevFireMask
+        prev_fire_tile = inputs_np[11]
 
         fig, axes = plt.subplots(1, 3, figsize=(16, 5))
         axes[0].imshow(prev_fire_tile, cmap="hot")
@@ -197,7 +193,7 @@ def train_unet(epochs=3, batch_size=16, lr=5e-4, num_train_shards=2):
 
         plt.suptitle("PyTorch Spatial U-Net: Next Day Wildfire Spread Prediction", fontsize=15, y=0.98)
         plt.tight_layout()
-        pred_path = "/Users/himanshupandey/Desktop/wildfire-spread-prediction/reports/figures/unet_sample_prediction.png"
+        pred_path = REPORTS_DIR / "figures" / "unet_sample_prediction.png"
         plt.savefig(pred_path, dpi=200)
         plt.close()
         print(f"Saved U-Net prediction figure to: {pred_path}")
@@ -205,4 +201,18 @@ def train_unet(epochs=3, batch_size=16, lr=5e-4, num_train_shards=2):
     return best_metrics
 
 if __name__ == "__main__":
-    train_unet(epochs=3, batch_size=16, lr=5e-4, num_train_shards=2)
+    parser = argparse.ArgumentParser(description="Train and evaluate PyTorch WildfireUNet.")
+    parser.add_argument("--data_dir", type=str, default=str(DATA_DIR), help="Path to raw TFRecord files")
+    parser.add_argument("--epochs", type=int, default=3, help="Number of training epochs")
+    parser.add_argument("--batch_size", type=int, default=16, help="Batch size")
+    parser.add_argument("--lr", type=float, default=5e-4, help="Learning rate")
+    parser.add_argument("--num_shards", type=int, default=2, help="Number of training shards to use")
+    args = parser.parse_args()
+
+    train_unet(
+        data_dir=args.data_dir,
+        epochs=args.epochs,
+        batch_size=args.batch_size,
+        lr=args.lr,
+        num_train_shards=args.num_shards
+    )

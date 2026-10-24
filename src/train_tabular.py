@@ -1,25 +1,27 @@
 """
 Trains and evaluates the Tabular AML Baseline (LightGBM) with spatial neighborhood features.
-Outputs:
-- models/lightgbm_baseline.joblib
-- reports/metrics_tabular_baseline.json
-- reports/figures/tabular_feature_importance.png
-- reports/figures/tabular_sample_prediction.png
+Features:
+- Completely portable paths (zero hardcoded usernames)
+- Dynamic CLI arguments and configuration overrides
+- Evaluation on untouched held-out validation shards
+- Feature importance visualization and sample prediction mapping
 """
 
 import os
 import glob
 import time
 import json
+import argparse
+from pathlib import Path
 import joblib
 import numpy as np
 import lightgbm as lgb
 import matplotlib.pyplot as plt
-from sklearn.metrics import precision_recall_curve, auc, roc_auc_score
+from sklearn.metrics import precision_recall_curve
 
 from dataset import WildfireTFRecordDataset
 from features import extract_tabular_features_from_tile, TABULAR_FEATURE_NAMES
-from utils import compute_binary_metrics, save_json
+from utils import compute_binary_metrics, save_json, DATA_DIR, MODELS_DIR, REPORTS_DIR, load_yaml_config
 
 def build_tabular_dataset_from_shards(file_paths, max_tiles=400, neg_sample_ratio=6):
     """
@@ -45,7 +47,6 @@ def build_tabular_dataset_from_shards(file_paths, max_tiles=400, neg_sample_rati
         tile_targets = target_np.flatten().astype(np.uint8)
         tile_valid = mask_np.flatten().astype(bool)
 
-        # Filter strictly to valid observable pixels
         valid_feats = tile_feats[tile_valid]
         valid_targets = tile_targets[tile_valid]
 
@@ -53,12 +54,10 @@ def build_tabular_dataset_from_shards(file_paths, max_tiles=400, neg_sample_rati
         neg_idx = np.where(valid_targets == 0)[0]
 
         if len(pos_idx) > 0:
-            # Retain all fire pixels
             n_neg = min(len(neg_idx), len(pos_idx) * neg_sample_ratio)
             sampled_neg_idx = np.random.choice(neg_idx, size=n_neg, replace=False)
             selected_idx = np.concatenate([pos_idx, sampled_neg_idx])
         else:
-            # If no fire in this tile, take a small background sample
             if len(neg_idx) > 0:
                 selected_idx = np.random.choice(neg_idx, size=min(len(neg_idx), 200), replace=False)
             else:
@@ -78,10 +77,6 @@ def build_tabular_dataset_from_shards(file_paths, max_tiles=400, neg_sample_rati
     return X, y
 
 def evaluate_on_heldout_split(model, eval_files, max_eval_tiles=100):
-    """
-    Evaluates strictly on UNTOUCHED held-out validation tiles.
-    No subsampling on evaluation to measure true real-world base rates!
-    """
     ds = WildfireTFRecordDataset(eval_files, normalize=False)
     y_true_all = []
     y_prob_all = []
@@ -96,12 +91,11 @@ def evaluate_on_heldout_split(model, eval_files, max_eval_tiles=100):
         target_np = target.numpy()[0]
         mask_np = mask.numpy()[0]
 
-        # Time inference per tile
         t0 = time.time()
         tile_feats = extract_tabular_features_from_tile(inputs_np)
         probs_flat = model.predict_proba(tile_feats)[:, 1]
         t1 = time.time()
-        latencies.append((t1 - t0) * 1000) # ms
+        latencies.append((t1 - t0) * 1000)
 
         probs_grid = probs_flat.reshape(64, 64)
         valid_mask = mask_np.astype(bool)
@@ -109,7 +103,6 @@ def evaluate_on_heldout_split(model, eval_files, max_eval_tiles=100):
         y_true_all.append(target_np[valid_mask])
         y_prob_all.append(probs_grid[valid_mask])
 
-        # Capture a tile with active spread for visualization
         if sample_vis_data is None and np.sum(target_np) > 25:
             sample_vis_data = (inputs_np, target_np, probs_grid)
 
@@ -120,12 +113,10 @@ def evaluate_on_heldout_split(model, eval_files, max_eval_tiles=100):
     y_true = np.concatenate(y_true_all)
     y_prob = np.concatenate(y_prob_all)
 
-    # Search for optimal F1 threshold
     precisions, recalls, thresholds = precision_recall_curve(y_true, y_prob)
     f1_scores = 2 * (precisions * recalls) / (precisions + recalls + 1e-7)
     best_idx = np.argmax(f1_scores)
     best_threshold = float(thresholds[best_idx]) if best_idx < len(thresholds) else 0.5
-    best_f1 = float(f1_scores[best_idx])
 
     metrics = compute_binary_metrics(y_true, y_prob, threshold=best_threshold)
     metrics["avg_tile_inference_ms"] = float(np.mean(latencies))
@@ -135,15 +126,13 @@ def evaluate_on_heldout_split(model, eval_files, max_eval_tiles=100):
 
     return metrics, sample_vis_data
 
-def train_and_evaluate():
-    data_dir = "/Users/himanshupandey/Desktop/wildfire-spread-prediction/data/raw"
-    train_files = sorted(glob.glob(os.path.join(data_dir, "*train_*.tfrecord")))[:3]
-    eval_files = sorted(glob.glob(os.path.join(data_dir, "*eval_*.tfrecord")))
+def train_and_evaluate(data_dir=None, max_train_tiles=600, max_eval_tiles=120, neg_sample_ratio=6):
+    data_dir = Path(data_dir or DATA_DIR)
+    train_files = sorted(glob.glob(str(data_dir / "*train_*.tfrecord")))[:3]
+    eval_files = sorted(glob.glob(str(data_dir / "*eval_*.tfrecord")))
 
-    # 1. Prepare Data
-    X_train, y_train = build_tabular_dataset_from_shards(train_files, max_tiles=600, neg_sample_ratio=6)
+    X_train, y_train = build_tabular_dataset_from_shards(train_files, max_tiles=max_train_tiles, neg_sample_ratio=neg_sample_ratio)
 
-    # 2. Train LightGBM
     print("\nTraining LightGBM Classifier...")
     model = lgb.LGBMClassifier(
         n_estimators=150,
@@ -161,16 +150,14 @@ def train_and_evaluate():
     train_time = time.time() - t0
     print(f"Training completed in {train_time:.2f}s")
 
-    # 3. Save Model Artifact
-    model_path = "/Users/himanshupandey/Desktop/wildfire-spread-prediction/models/lightgbm_baseline.joblib"
+    model_path = MODELS_DIR / "lightgbm_baseline.joblib"
     joblib.dump(model, model_path)
     print(f"Saved trained baseline model to: {model_path}")
 
-    # 4. Evaluate
-    metrics, sample_vis = evaluate_on_heldout_split(model, eval_files, max_eval_tiles=120)
+    metrics, sample_vis = evaluate_on_heldout_split(model, eval_files, max_eval_tiles=max_eval_tiles)
     metrics["train_time_seconds"] = float(train_time)
 
-    metrics_path = "/Users/himanshupandey/Desktop/wildfire-spread-prediction/reports/metrics_tabular_baseline.json"
+    metrics_path = REPORTS_DIR / "metrics_tabular_baseline.json"
     save_json(metrics, metrics_path)
     print(f"\n--- Held-Out Benchmark Results ---")
     print(f"  PR-AUC (Precision-Recall AUC): {metrics['pr_auc']:.4f}")
@@ -183,7 +170,7 @@ def train_and_evaluate():
     print(f"  Dice Score:                    {metrics['dice']:.4f}")
     print(f"  Inference Latency per Tile:    {metrics['avg_tile_inference_ms']:.2f} ms")
 
-    # 5. Feature Importance Figure
+    # Feature Importance Figure
     fig, ax = plt.subplots(figsize=(10, 6))
     importances = model.feature_importances_
     indices = np.argsort(importances)[::-1]
@@ -195,15 +182,15 @@ def train_and_evaluate():
     ax.set_xlabel("Split Importance (Number of Times Used)", fontweight="bold")
     ax.set_title("LightGBM Baseline: Spatial Feature Importances", fontsize=13, fontweight="bold")
     plt.tight_layout()
-    fi_path = "/Users/himanshupandey/Desktop/wildfire-spread-prediction/reports/figures/tabular_feature_importance.png"
+    fi_path = REPORTS_DIR / "figures" / "tabular_feature_importance.png"
     plt.savefig(fi_path, dpi=200)
     plt.close()
     print(f"Saved feature importance figure to: {fi_path}")
 
-    # 6. Sample Prediction Visualization
+    # Sample Prediction Visualization
     if sample_vis:
         inputs_np, y_true_tile, y_prob_tile = sample_vis
-        prev_fire_tile = inputs_np[11] # PrevFireMask
+        prev_fire_tile = inputs_np[11]
 
         fig, axes = plt.subplots(1, 3, figsize=(16, 5))
         axes[0].imshow(prev_fire_tile, cmap="hot")
@@ -215,16 +202,28 @@ def train_and_evaluate():
         axes[1].axis("off")
 
         im = axes[2].imshow(y_prob_tile, cmap="inferno", vmin=0, vmax=1)
-        axes[2].set_title(f"LightGBM Predicted Spread Probability", fontweight="bold")
+        axes[2].set_title("LightGBM Predicted Spread Probability", fontweight="bold")
         axes[2].axis("off")
         plt.colorbar(im, ax=axes[2], fraction=0.046, pad=0.04, label="Burn Probability")
 
         plt.suptitle("LightGBM Baseline: Spatial Wildfire Spread Prediction", fontsize=15, y=0.98)
         plt.tight_layout()
-        pred_path = "/Users/himanshupandey/Desktop/wildfire-spread-prediction/reports/figures/tabular_sample_prediction.png"
+        pred_path = REPORTS_DIR / "figures" / "tabular_sample_prediction.png"
         plt.savefig(pred_path, dpi=200)
         plt.close()
         print(f"Saved sample prediction plot to: {pred_path}")
 
 if __name__ == "__main__":
-    train_and_evaluate()
+    parser = argparse.ArgumentParser(description="Train and evaluate LightGBM tabular baseline.")
+    parser.add_argument("--data_dir", type=str, default=str(DATA_DIR), help="Path to raw TFRecord files")
+    parser.add_argument("--max_train_tiles", type=int, default=600, help="Maximum number of training tiles")
+    parser.add_argument("--max_eval_tiles", type=int, default=120, help="Maximum number of evaluation tiles")
+    parser.add_argument("--neg_ratio", type=int, default=6, help="Negative to positive pixel sampling ratio")
+    args = parser.parse_args()
+
+    train_and_evaluate(
+        data_dir=args.data_dir,
+        max_train_tiles=args.max_train_tiles,
+        max_eval_tiles=args.max_eval_tiles,
+        neg_sample_ratio=args.neg_ratio
+    )

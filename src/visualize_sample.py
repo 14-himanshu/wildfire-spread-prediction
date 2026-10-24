@@ -1,18 +1,24 @@
 """
 Generates high-resolution visualization figures of raw multi-band wildfire tiles
 and fire spread progression for documentation and portfolio reports.
+Uses portable dynamic paths and CLI arguments.
 """
 
 import os
 import glob
+import argparse
+from pathlib import Path
 import numpy as np
 import matplotlib.pyplot as plt
 from dataset import WildfireTFRecordDataset, FEATURE_NAMES
-from utils import decompose_wind
+from utils import decompose_wind, DATA_DIR, REPORTS_DIR
 
-def generate_sample_visualizations(raw_dir, output_dir="reports/figures"):
-    os.makedirs(output_dir, exist_ok=True)
-    train_files = sorted(glob.glob(os.path.join(raw_dir, "*train_00.tfrecord")))
+def generate_sample_visualizations(raw_dir=None, output_dir=None):
+    raw_dir = Path(raw_dir or DATA_DIR)
+    output_dir = Path(output_dir or (REPORTS_DIR / "figures"))
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    train_files = sorted(glob.glob(str(raw_dir / "*train_00.tfrecord")))
     ds = WildfireTFRecordDataset(train_files, normalize=False)
 
     sample_inputs, sample_target = None, None
@@ -51,7 +57,7 @@ def generate_sample_visualizations(raw_dir, output_dir="reports/figures"):
 
     plt.suptitle("Multimodal Geospatial Bands for Wildfire Tile (64x64 km)", fontsize=16, y=0.98)
     plt.tight_layout()
-    out_multiband = os.path.join(output_dir, "multiband_channels.png")
+    out_multiband = output_dir / "multiband_channels.png"
     plt.savefig(out_multiband, dpi=200, bbox_inches="tight")
     plt.close()
     print(f"Saved: {out_multiband}")
@@ -65,17 +71,14 @@ def generate_sample_visualizations(raw_dir, output_dir="reports/figures"):
 
     fig, axes = plt.subplots(1, 3, figsize=(18, 6))
 
-    # Day T
     axes[0].imshow(prev_fire, cmap="hot")
     axes[0].set_title("Day T: Active Perimeter", fontsize=13, fontweight="bold")
     axes[0].axis("off")
 
-    # Day T+1
     axes[1].imshow(sample_target, cmap="hot")
     axes[1].set_title("Day T+1: Ground Truth Perimeter", fontsize=13, fontweight="bold")
     axes[1].axis("off")
 
-    # Wind Quiver on Elevation + Contours
     step = 4
     Y, X = np.mgrid[0:64:step, 0:64:step]
     U_sub = u[::step, ::step]
@@ -90,11 +93,15 @@ def generate_sample_visualizations(raw_dir, output_dir="reports/figures"):
     plt.colorbar(im_elev, ax=axes[2], fraction=0.046, pad=0.04, label="Elevation (m)")
 
     plt.tight_layout()
-    out_progression = os.path.join(output_dir, "fire_progression_physics.png")
+    out_progression = output_dir / "fire_progression_physics.png"
     plt.savefig(out_progression, dpi=200, bbox_inches="tight")
     plt.close()
     print(f"Saved: {out_progression}")
 
 if __name__ == "__main__":
-    raw_dir = "/Users/himanshupandey/Desktop/wildfire-spread-prediction/data/raw"
-    generate_sample_visualizations(raw_dir)
+    parser = argparse.ArgumentParser(description="Generate publication figures for wildfire tiles.")
+    parser.add_argument("--data_dir", type=str, default=str(DATA_DIR), help="Path to raw TFRecords")
+    parser.add_argument("--output_dir", type=str, default=str(REPORTS_DIR / "figures"), help="Output directory for plots")
+    args = parser.parse_args()
+
+    generate_sample_visualizations(raw_dir=args.data_dir, output_dir=args.output_dir)
