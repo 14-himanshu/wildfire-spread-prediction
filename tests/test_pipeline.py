@@ -114,6 +114,25 @@ def test_dataloader_streaming():
         assert torch.all(torch.isfinite(x))
         break
 
+
+def test_unet_and_loss():
+    from src.models.unet import WildfireUNet
+    from src.loss import CombinedBCEFocalTverskyLoss
+
+    model = WildfireUNet(in_channels=12, out_channels=1, base_channels=16)
+    x = torch.randn(2, 12, 64, 64)
+    y = (torch.rand(2, 1, 64, 64) > 0.9).float()
+    mask = (torch.rand(2, 1, 64, 64) > 0.1).float()
+
+    logits = model(x)
+    assert logits.shape == (2, 1, 64, 64)
+
+    criterion = CombinedBCEFocalTverskyLoss()
+    loss = criterion(logits, y, mask)
+    assert torch.isfinite(loss)
+    loss.backward()
+    assert model.inc.double_conv[0].weight.grad is not None
+
 if __name__ == "__main__":
     print("Running pipeline test suite...")
     test_anomaly_cleaning()
@@ -126,4 +145,6 @@ if __name__ == "__main__":
     print("  [PASS] test_metrics_edge_cases")
     test_dataloader_streaming()
     print("  [PASS] test_dataloader_streaming")
-    print("\nALL 5 PIPELINE UNIT TESTS PASSED SUCCESSFULLY! ZERO ISSUES FOUND.")
+    test_unet_and_loss()
+    print("  [PASS] test_unet_and_loss")
+    print("\nALL 6 PIPELINE UNIT TESTS PASSED SUCCESSFULLY! ZERO ISSUES FOUND.")
