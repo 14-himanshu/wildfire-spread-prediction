@@ -38,3 +38,6 @@ data/*
 
 # Logs & Temporary files
 *.log
+
+# GitHub CI Templates (prevent token workflow scope push errors)
+.github_ci/

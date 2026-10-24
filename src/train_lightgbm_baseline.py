@@ -157,7 +157,7 @@ def train_and_evaluate(data_dir=None, max_train_tiles=600, max_eval_tiles=120, n
     metrics, sample_vis = evaluate_on_heldout_split(model, eval_files, max_eval_tiles=max_eval_tiles)
     metrics["train_time_seconds"] = float(train_time)
 
-    metrics_path = REPORTS_DIR / "metrics_tabular_baseline.json"
+    metrics_path = REPORTS_DIR / "metrics_lightgbm_baseline.json"
     save_json(metrics, metrics_path)
     print(f"\n--- Held-Out Benchmark Results ---")
     print(f"  PR-AUC (Precision-Recall AUC): {metrics['pr_auc']:.4f}")
@@ -182,7 +182,7 @@ def train_and_evaluate(data_dir=None, max_train_tiles=600, max_eval_tiles=120, n
     ax.set_xlabel("Split Importance (Number of Times Used)", fontweight="bold")
     ax.set_title("LightGBM Baseline: Spatial Feature Importances", fontsize=13, fontweight="bold")
     plt.tight_layout()
-    fi_path = REPORTS_DIR / "figures" / "tabular_feature_importance.png"
+    fi_path = REPORTS_DIR / "figures" / "lightgbm_feature_importance.png"
     plt.savefig(fi_path, dpi=200)
     plt.close()
     print(f"Saved feature importance figure to: {fi_path}")
@@ -208,7 +208,7 @@ def train_and_evaluate(data_dir=None, max_train_tiles=600, max_eval_tiles=120, n
 
         plt.suptitle("LightGBM Baseline: Spatial Wildfire Spread Prediction", fontsize=15, y=0.98)
         plt.tight_layout()
-        pred_path = REPORTS_DIR / "figures" / "tabular_sample_prediction.png"
+        pred_path = REPORTS_DIR / "figures" / "lightgbm_sample_prediction.png"
         plt.savefig(pred_path, dpi=200)
         plt.close()
         print(f"Saved sample prediction plot to: {pred_path}")

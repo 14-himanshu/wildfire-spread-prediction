@@ -20,11 +20,40 @@ import numpy as np
 import torch
 from torch.utils.data import IterableDataset, DataLoader, get_worker_info
 
+# Standardized channel nomenclature matching Google Earth Engine multi-spectral rasters
 FEATURE_NAMES = [
-    'elevation', 'pdsi', 'NDVI', 'pr', 'sph', 'th', 
-    'tmmn', 'tmmx', 'vs', 'erc', 'population', 'PrevFireMask'
+    'elevation',     # Topographic Elevation (meters)
+    'pdsi',          # Palmer Drought Severity Index (soil/fuel dryness)
+    'NDVI',          # Normalized Difference Vegetation Index (vegetation density)
+    'pr',            # Daily Precipitation (rainfall in mm)
+    'sph',           # Specific Humidity (atmospheric water vapor in kg/kg)
+    'th',            # Wind Direction Azimuth (degrees clockwise from North: 0-360)
+    'tmmn',          # Daily Minimum Temperature (Kelvin)
+    'tmmx',          # Daily Maximum Temperature (Kelvin)
+    'vs',            # Wind Velocity at 10m height (meters/second)
+    'erc',           # Energy Release Component (National Fire Danger Rating Index)
+    'population',    # Human Population Density (persons per square kilometer)
+    'PrevFireMask'   # Active Wildfire Detection Perimeter on Day T (binary 0/1)
 ]
-TARGET_NAME = 'FireMask'
+
+TARGET_NAME = 'FireMask'  # Active Wildfire Detection Perimeter on Day T+1 (binary 0/1)
+
+# Self-explanatory human-readable metadata mapping for reports and user interfaces
+FEATURE_METADATA = {
+    'elevation': {'title': 'Elevation', 'unit': 'meters', 'category': 'Topography'},
+    'pdsi': {'title': 'Drought Severity Index', 'unit': 'dimensionless', 'category': 'Climate'},
+    'NDVI': {'title': 'Vegetation Density Index', 'unit': 'scaled 10^4', 'category': 'Fuel'},
+    'pr': {'title': 'Precipitation', 'unit': 'mm/day', 'category': 'Weather'},
+    'sph': {'title': 'Specific Humidity', 'unit': 'kg/kg', 'category': 'Weather'},
+    'th': {'title': 'Wind Direction', 'unit': 'degrees', 'category': 'Weather'},
+    'tmmn': {'title': 'Minimum Temperature', 'unit': 'Kelvin', 'category': 'Weather'},
+    'tmmx': {'title': 'Maximum Temperature', 'unit': 'Kelvin', 'category': 'Weather'},
+    'vs': {'title': 'Wind Velocity', 'unit': 'm/s', 'category': 'Weather'},
+    'erc': {'title': 'Energy Release Component', 'unit': 'fire danger index', 'category': 'Fuel'},
+    'population': {'title': 'Population Density', 'unit': 'persons/km^2', 'category': 'Anthropogenic'},
+    'PrevFireMask': {'title': 'Initial Fire Boundary (Day T)', 'unit': 'binary {0, 1}', 'category': 'Fire State'},
+    'FireMask': {'title': 'Target Fire Spread (Day T+1)', 'unit': 'binary {0, 1}', 'category': 'Target'}
+}
 RESOLUTION = 64
 NUM_PIXELS = RESOLUTION * RESOLUTION
 
