@@ -123,12 +123,12 @@ python tests/test_pipeline.py
 
 ### 3. Run LightGBM Baseline Training
 ```bash
-python src/train_tabular.py
+python src/train_lightgbm_baseline.py
 ```
 
 ### 4. Run PyTorch U-Net Training
 ```bash
-python src/train_unet.py
+python src/train_unet_model.py
 ```
 
 ---
@@ -147,7 +147,7 @@ wildfire-spread-prediction/
 │   └── 01_exploratory_data_analysis.ipynb # Interactive EDA and visual inspection
 ├── reports/
 │   ├── figures/                   # Benchmark plots, comparisons, and heatmaps
-│   ├── metrics_tabular_baseline.json # Quantitative benchmark records for LightGBM
+│   ├── metrics_lightgbm_baseline.json # Quantitative benchmark records for LightGBM
 │   └── metrics_unet.json          # Quantitative benchmark records for U-Net
 ├── src/
 │   ├── dataset.py                 # Streaming TFRecord DataLoader with anomaly defense
@@ -155,8 +155,8 @@ wildfire-spread-prediction/
 │   ├── loss.py                    # Masked Focal-Tversky loss function
 │   ├── models/
 │   │   └── unet.py                # PyTorch 2D U-Net architecture
-│   ├── train_tabular.py           # LightGBM training and held-out evaluation
-│   ├── train_unet.py              # PyTorch training and evaluation loop
+│   ├── train_lightgbm_baseline.py # LightGBM training and held-out evaluation
+│   ├── train_unet_model.py        # PyTorch training and evaluation loop
 │   ├── compute_stats.py           # Training split running statistics
 │   ├── visualize_sample.py        # Figure generator
 │   └── utils.py                   # Wind vectorization and evaluation metrics
