@@ -1,0 +1,40 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Operating System Files
+.DS_Store
+Thumbs.db
+
+# Virtual Environments
+.venv/
+venv/
+env/
+ENV/
+
+# Jupyter Notebook Checkpoints
+.ipynb_checkpoints/
+
+# Data Files & Large Archives (CRITICAL: Do not commit 4GB dataset)
+data/*
+!data/.gitkeep
+*.tfrecord
+*.zip
+*.tar.gz
+*.part
+*.csv.gz
+
+# Deep Learning Large Model Weights
+*.pth
+*.pt
+*.onnx
+
+# IDE Configuration
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# Logs & Temporary files
+*.log
