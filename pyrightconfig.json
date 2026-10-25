@@ -1,0 +1,14 @@
+{
+  "include": [
+    "src",
+    "tests",
+    "notebooks"
+  ],
+  "extraPaths": [
+    ".",
+    "src"
+  ],
+  "venvPath": ".",
+  "venv": ".venv",
+  "pythonVersion": "3.12"
+}

@@ -41,6 +41,7 @@ def evaluate_unet(model, val_loader, criterion, device, max_batches=25):
     sample_vis = None
     latencies = []
 
+    b_idx = 0
     with torch.no_grad():
         for b_idx, (inputs, targets, masks) in enumerate(val_loader):
             inputs = inputs.to(device)
