@@ -1,0 +1,30 @@
+# Version control & development
+.git/
+.gitignore
+.github_ci/
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Virtual environments & Python cache
+.venv
+.venv/
+venv/
+env/
+__pycache__/
+*.py[cod]
+*.log
+
+# Jupyter Notebooks
+.ipynb_checkpoints/
+
+# Raw dataset files (Mount via docker volume if needed)
+data/*
+!data/.gitkeep
+*.tfrecord
+*.tar.gz
+*.zip
+
+# PyTorch Training Checkpoint (ONNX runtime model is used in container)
+models/wildfire_unet_best.pth

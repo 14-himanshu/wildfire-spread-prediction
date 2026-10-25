@@ -8,6 +8,7 @@ __pycache__/
 Thumbs.db
 
 # Virtual Environments
+.venv
 .venv/
 venv/
 env/

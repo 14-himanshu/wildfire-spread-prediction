@@ -1,0 +1,39 @@
+version: "3.8"
+
+services:
+  api:
+    container_name: wildfire-spread-api
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: ["uvicorn", "src.api:app", "--host", "0.0.0.0", "--port", "8000"]
+    ports:
+      - "8000:8000"
+    environment:
+      - PYTHONPATH=/app
+    volumes:
+      - ./data:/app/data:ro
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 20s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  dashboard:
+    container_name: wildfire-spread-dashboard
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: ["streamlit", "run", "src/dashboard.py", "--server.port", "8501", "--server.address", "0.0.0.0"]
+    ports:
+      - "8501:8501"
+    environment:
+      - PYTHONPATH=/app
+    volumes:
+      - ./data:/app/data:ro
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
