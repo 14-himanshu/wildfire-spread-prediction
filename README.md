@@ -153,6 +153,17 @@ python tests/test_pipeline.py
 python tests/test_serving.py
 ```
 
+### 9. Production Deployment via Docker Compose
+Deploy both the FastAPI REST microservice and Streamlit GIS Dashboard in isolated containers with a single command:
+
+```bash
+docker compose up --build
+```
+
+- **FastAPI REST API & Swagger UI:** `http://localhost:8000/docs`
+- **Streamlit Interactive GIS Dashboard:** `http://localhost:8501`
+- **Container Healthcheck:** `curl http://localhost:8000/health`
+
 ---
 
 ## 7. Repository Structure
@@ -186,9 +197,12 @@ wildfire-spread-prediction/
 │   ├── compute_stats.py           # Training split running statistics
 │   ├── visualize_sample.py        # Figure generator
 │   └── utils.py                   # Wind vectorization and evaluation metrics
-└── tests/
-    ├── test_pipeline.py           # Data pipeline, physics, and model unit tests
-    └── test_serving.py            # ONNX, inference engine, and FastAPI tests
+├── tests/
+│   ├── test_pipeline.py           # Data pipeline, physics, and model unit tests
+│   └── test_serving.py            # ONNX, inference engine, and FastAPI tests
+├── Dockerfile                     # Multi-stage production container specification
+├── docker-compose.yml             # Orchestration for API and Dashboard services
+└── .dockerignore                  # Build context exclusions for large datasets
 ```
 
 ---
