@@ -29,6 +29,7 @@ data/*
 *.pth
 *.pt
 *.onnx
+*.onnx.data
 
 # IDE Configuration
 .vscode/

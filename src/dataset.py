@@ -123,11 +123,14 @@ def clean_and_normalize_tile(feats, scalers=None, normalize=True):
     """
     Cleans physical anomalies and applies zero-leakage z-score normalization.
     """
-    raw_target = feats[TARGET_NAME]
-    
-    # 1. Cloud & missing sensor mask (-1.0)
-    valid_mask = (raw_target >= 0.0).astype(np.float32)
-    clean_target = (raw_target > 0.5).astype(np.float32)
+    if TARGET_NAME in feats:
+        raw_target = feats[TARGET_NAME]
+        # 1. Cloud & missing sensor mask (-1.0)
+        valid_mask = (raw_target >= 0.0).astype(np.float32)
+        clean_target = (raw_target > 0.5).astype(np.float32)
+    else:
+        valid_mask = np.ones((RESOLUTION, RESOLUTION), dtype=np.float32)
+        clean_target = np.zeros((RESOLUTION, RESOLUTION), dtype=np.float32)
 
     stacked_inputs = []
     for name in FEATURE_NAMES:
