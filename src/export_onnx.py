@@ -53,7 +53,7 @@ def export_to_onnx(checkpoint_path=None, output_path=None):
 
     torch.onnx.export(
         inference_model,
-        dummy_input,
+        (dummy_input,),
         str(output_path),
         export_params=True,
         opset_version=18,

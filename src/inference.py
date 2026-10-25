@@ -117,16 +117,19 @@ class WildfireInferenceEngine:
         input_tensor_np = np.expand_dims(cleaned_inputs, axis=0).astype(np.float32)  # [1, 12, 64, 64]
 
         # Model Forward Pass
-        if self.backend == "onnx":
-            prob_output = self.session.run([self.output_name], {self.input_name: input_tensor_np})[0]
+        if self.backend == "onnx" and self.session is not None:
+            raw_output = self.session.run([self.output_name], {self.input_name: input_tensor_np})[0]
+            prob_output = np.asarray(raw_output, dtype=np.float32)
             probability_map = prob_output[0, 0]  # [64, 64]
-        else:
+        elif self.model is not None:
             import torch
             with torch.no_grad():
                 tensor_in = torch.from_numpy(input_tensor_np).to(self.device)
                 logits = self.model(tensor_in)
                 probs = torch.sigmoid(logits)
                 probability_map = probs.cpu().numpy()[0, 0]
+        else:
+            raise RuntimeError("Inference backend session or model is not initialized.")
 
         # Operational Metrics Calculation
         binary_mask = (probability_map >= threshold).astype(np.uint8)

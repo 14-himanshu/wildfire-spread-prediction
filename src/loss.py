@@ -94,5 +94,6 @@ if __name__ == "__main__":
     loss.backward()
 
     print(f"Loss module test: Computed loss = {loss.item():.4f}")
+    assert logits.grad is not None
     print(f"Gradient check: Logits grad norm = {logits.grad.norm().item():.4f}")
     print("Loss module initialized and tested successfully.")
