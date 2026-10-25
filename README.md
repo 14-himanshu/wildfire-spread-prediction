@@ -131,6 +131,28 @@ python src/train_lightgbm_baseline.py
 python src/train_unet_model.py
 ```
 
+### 5. Export Optimized ONNX Model
+```bash
+python src/export_onnx.py
+```
+
+### 6. Launch Production FastAPI REST Microservice
+```bash
+uvicorn src.api:app --reload --port 8000
+```
+Interactive API documentation and schema explorer available at `http://localhost:8000/docs`.
+
+### 7. Launch Interactive GIS Web Dashboard
+```bash
+streamlit run src/dashboard.py
+```
+
+### 8. Run Full Automated Test Suite
+```bash
+python tests/test_pipeline.py
+python tests/test_serving.py
+```
+
 ---
 
 ## 7. Repository Structure
@@ -157,11 +179,16 @@ wildfire-spread-prediction/
 │   │   └── unet.py                # PyTorch 2D U-Net architecture
 │   ├── train_lightgbm_baseline.py # LightGBM training and held-out evaluation
 │   ├── train_unet_model.py        # PyTorch training and evaluation loop
+│   ├── export_onnx.py             # Optimized ONNX model exporter and benchmark
+│   ├── inference.py               # Production inference engine with hazard tiers
+│   ├── api.py                     # FastAPI REST microservice
+│   ├── dashboard.py               # Interactive GIS web dashboard (Streamlit)
 │   ├── compute_stats.py           # Training split running statistics
 │   ├── visualize_sample.py        # Figure generator
 │   └── utils.py                   # Wind vectorization and evaluation metrics
 └── tests/
-    └── test_pipeline.py           # Automated unit test suite
+    ├── test_pipeline.py           # Data pipeline, physics, and model unit tests
+    └── test_serving.py            # ONNX, inference engine, and FastAPI tests
 ```
 
 ---
